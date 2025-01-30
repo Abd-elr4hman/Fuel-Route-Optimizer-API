@@ -12,7 +12,7 @@ This is an Implementation of a route optimization API for trucks in the USA that
 
 ## How to Use
 
-1. create and activate python environment
+1. Create and activate python environment
 
 2. Install pipenv `pip install pipenv`
 
