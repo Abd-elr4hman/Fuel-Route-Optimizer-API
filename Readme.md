@@ -12,8 +12,10 @@ This is an Implementation of a route optimization API for trucks in the USA that
 
 ## How to Use
 
-1. Install pipenv `pip install pipenv`
+1. create and activate python environment
 
-2. Install dependencies `pipenv install`
+2. Install pipenv `pip install pipenv`
 
-3. Run the django app `python manage.py runserver`
+3. Install dependencies `pipenv install`
+
+4. Run the django app `python manage.py runserver`
