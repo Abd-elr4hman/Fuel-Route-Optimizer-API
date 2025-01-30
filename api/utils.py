@@ -83,6 +83,30 @@ def decode_polyline(polyline, is3d=False):
 
 
 def get_route(coords):
+    """
+    Retrieves a route between the provided coordinates using the OpenRouteService API and returns the route's geometry and details.
+
+    Args:
+        coords (list of tuples): A list of coordinate tuples (longitude, latitude) representing the start and end points of the route.
+
+    Returns:
+        tuple: A tuple containing:
+            - line (LineString): A Shapely LineString object representing the geometry of the route.
+            - route (dict): The full response from the OpenRouteService API containing detailed route information.
+
+    Example:
+        >>> coords = [(8.681495, 49.41461), (8.687872, 49.420318)]
+        >>> line, route = get_route(coords)
+        >>> print(line)
+        LINESTRING (8.681495 49.41461, 8.682 49.415, ...)
+        >>> print(route['routes'][0]['summary'])
+        {'distance': 1234.5, 'duration': 567.8}
+
+    Notes:
+        - Requires a valid OpenRouteService API token stored in the `token` variable.
+        - The `radiuses` parameter is set to 5000 meters, meaning the route will snap to the nearest road within 5 km of the provided coordinates.
+        - The function uses the `driving-car` profile for routing.
+    """
     # request from openroutesapi
     client = openrouteservice.Client(key=token)
     route = directions(client, coords, profile="driving-car", radiuses=5000)
@@ -96,6 +120,44 @@ def get_route(coords):
 
 
 def find_stations_on_route(route_line: LineString, max_distance=100000):
+    """
+    Finds fuel stations located near a given route and calculates their distance along the route.
+
+    Args:
+        route_line (LineString): A Shapely LineString object representing the geometry of the route.
+        max_distance (float, optional): The maximum allowable distance (in meters) between a station and the route
+                                        for the station to be considered. Defaults to 100,000 meters (100 km).
+
+    Returns:
+        list of dict: A list of dictionaries, where each dictionary contains information about a fuel station near the route.
+                      Each dictionary includes the following keys:
+                        - "distance" (int): The distance along the route to the station (in meters).
+                        - "price" (float): The retail price of fuel at the station.
+                        - "Truckstop_Name" (str): The name of the truck stop or fuel station.
+                        - "Address" (str): The address of the station.
+                        - "lat" (float): The latitude of the station's projected point on the route.
+                        - "lng" (float): The longitude of the station's projected point on the route.
+                      The list is sorted by the "distance" key in ascending order.
+
+    Notes:
+        - The function assumes the existence of a global `FUEL_STATIONS` DataFrame containing fuel station data.
+        - The `FUEL_STATIONS` DataFrame must have the following columns:
+            - "Geocode": A tuple or list containing the station's longitude and latitude.
+            - "Retail Price": The price of fuel at the station.
+            - "Truckstop Name": The name of the station.
+            - "Address": The address of the station.
+        - The function calculates the geometric distance between the station and the route, projects the station onto the route,
+          and computes the distance along the route to the projected point.
+        - Distances are converted from degrees to meters using Earth's radius (6,371,000 meters).
+
+    Example:
+        >>> route_line = LineString([(8.681495, 49.41461), (8.687872, 49.420318)])
+        >>> stations = find_stations_on_route(route_line, max_distance=5000)
+        >>> for station in stations:
+        ...     print(station["Truckstop_Name"], station["distance"])
+        "Station A" 1234
+        "Station B" 5678
+    """
     # Constants
     EARTH_RADIUS = 6371000  # Earth's radius in meters
     DEG_TO_M = (2 * math.pi * EARTH_RADIUS) / 360  # Meters per degree
@@ -127,6 +189,46 @@ def find_stations_on_route(route_line: LineString, max_distance=100000):
 
 
 def calculate_optimal_stops(stations, total_distance):
+    """
+    Calculates the optimal fuel stops along a route based on fuel price and vehicle range.
+
+    Args:
+        stations (list of dict): A list of fuel station dictionaries, where each dictionary contains:
+            - "distance" (int): The distance along the route to the station (in meters).
+            - "price" (float): The retail price of fuel at the station.
+            - Other keys (e.g., "Truckstop_Name", "Address", etc.) are ignored in this function.
+        total_distance (float): The total distance of the route in meters.
+
+    Returns:
+        tuple: A tuple containing:
+            - stops (list of dict): A list of selected fuel stations where the vehicle should stop.
+                                    Each dictionary contains the same keys as the input `stations`.
+            - total_cost (float): The estimated total cost of fuel for the trip, based on the selected stops.
+
+            If no valid stops are found (e.g., no stations within range), returns `(None, None)`.
+
+    Notes:
+        - The function assumes a maximum vehicle range of 804,672 meters (500 miles).
+        - The fuel consumption rate is assumed to be 10 miles per gallon (mpg).
+        - The function iteratively selects the cheapest fuel station within the vehicle's range for each segment of the trip.
+        - If the total distance is less than the vehicle's range, no stops are needed, and the function returns an empty list and a cost of 0.0.
+        - If no stations are found within the vehicle's range at any point, the function returns `(None, None)`.
+
+    Example:
+        >>> stations = [
+        ...     {"distance": 100000, "price": 3.50, "Truckstop_Name": "Station A", "Address": "123 Main St"},
+        ...     {"distance": 300000, "price": 3.20, "Truckstop_Name": "Station B", "Address": "456 Elm St"},
+        ...     {"distance": 600000, "price": 3.40, "Truckstop_Name": "Station C", "Address": "789 Oak St"},
+        ... ]
+        >>> total_distance = 1000000  # 1,000 km
+        >>> stops, total_cost = calculate_optimal_stops(stations, total_distance)
+        >>> for stop in stops:
+        ...     print(stop["Truckstop_Name"], stop["distance"])
+        Station B 300000
+        Station C 600000
+        >>> print(f"Total cost: ${total_cost:.2f}")
+        Total cost: $64.50
+    """
     MAX_DISTANCE = 804672  # in meters
 
     # if the trip is less than range

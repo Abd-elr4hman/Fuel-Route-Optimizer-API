@@ -1,0 +1,19 @@
+# Ignore Python virtual environment
+.venv/
+
+# Ignore Ruff cache
+.ruff_cache/
+
+# Ignore SQLite database file
+db.sqlite3
+
+# Ignore other common files and directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.env
+*.git
+.gitignore
